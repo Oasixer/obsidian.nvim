@@ -68,6 +68,15 @@ util.tbl_unique = function(table)
   return out
 end
 
+--- Clear all values from a table.
+---
+---@param t table
+util.tbl_clear = function(t)
+  for k, _ in pairs(t) do
+    t[k] = nil
+  end
+end
+
 --------------------
 -- String methods --
 --------------------
@@ -391,6 +400,26 @@ util.parent_directory = function(path)
   end
 
   return Path:new(path):parent()
+end
+
+--- Get all parent directories of a path. Returns strings to be consistent with `Path:parents()`.
+---
+---@param path string|Path
+---
+---@return string[]
+util.parent_directories = function(path)
+  -- 'Path:parents()' has bugs on Windows, so we do this our own way.
+  ---@type string[]
+  local parents = {}
+  local current = tostring(path)
+  ---@type string
+  local parent = tostring(util.parent_directory(current))
+  while parent ~= current do
+    parents[#parents + 1] = parent
+    current = parent
+    parent = tostring(util.parent_directory(current))
+  end
+  return parents
 end
 
 ------------------------------------
@@ -830,8 +859,8 @@ util.get_visual_selection = function()
   -- swap vars if needed
   if cerow < csrow then
     csrow, cerow = cerow, csrow
-  end
-  if cecol < cscol then
+    cscol, cecol = cecol, cscol
+  elseif cerow == csrow and cecol < cscol then
     cscol, cecol = cecol, cscol
   end
 
@@ -845,8 +874,14 @@ util.get_visual_selection = function()
     selection = ""
   elseif n == 1 then
     selection = string.sub(lines[1], cscol, cecol)
+  elseif n == 2 then
+    selection = string.sub(lines[1], cscol) .. "\n" .. string.sub(lines[n], 1, cecol)
   else
-    selection = string.sub(lines[1], cscol) .. table.concat(lines, "\n", 2, n - 1) .. string.sub(lines[n], 1, cecol)
+    selection = string.sub(lines[1], cscol)
+      .. "\n"
+      .. table.concat(lines, "\n", 2, n - 1)
+      .. "\n"
+      .. string.sub(lines[n], 1, cecol)
   end
 
   return {
