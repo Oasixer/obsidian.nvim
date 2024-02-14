@@ -10,6 +10,8 @@ local command_lookups = {
   ObsidianNew = "obsidian.commands.new",
   ObsidianOpen = "obsidian.commands.open",
   ObsidianBacklinks = "obsidian.commands.backlinks",
+  ObsidianGotoNextLink = "obsidian.commands.goto_next_link",
+  ObsidianGotoPrevLink = "obsidian.commands.goto_prev_link",
   ObsidianSearch = "obsidian.commands.search",
   ObsidianTags = "obsidian.commands.tags",
   ObsidianTemplate = "obsidian.commands.template",
@@ -152,6 +154,10 @@ M.register(
   "ObsidianOpen",
   { opts = { nargs = "?", desc = "Open in the Obsidian app" }, complete = M.complete_args_search }
 )
+
+M.register("ObsidianGotoNextLink", { opts = { nargs = 0, desc = "Goto next link" } })
+
+M.register("ObsidianGotoPrevLink", { opts = { nargs = 0, desc = "Goto prev link" } })
 
 M.register("ObsidianBacklinks", { opts = { nargs = 0, desc = "Collect backlinks" } })
 
