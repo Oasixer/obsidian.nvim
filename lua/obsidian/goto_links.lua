@@ -32,7 +32,7 @@ local function find_link(bufnr, direction)
         (direction == 1 and (i > current_line or (i == current_line and m_start > current_col)))
         or (direction == -1 and (i < current_line or (i == current_line and m_end < current_col)))
       then
-        local link_start = direction == 1 and m_start or m_end
+        local link_start = m_start + 1
         vim.api.nvim_win_set_cursor(0, { i, link_start })
         return
       end
