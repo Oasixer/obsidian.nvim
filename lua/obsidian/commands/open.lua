@@ -13,17 +13,17 @@ return function(client, data)
   if data.args:len() > 0 then
     local note = client:resolve_note(data.args)
     if note ~= nil then
-      path = assert(client:vault_relative_path(note.path))
+      path = tostring(client:vault_relative_path(note.path, { strict = true }))
     else
       log.err "Could not resolve arguments to a note ID, path, or alias"
       return
     end
   else
     local cursor_link, _, ref_type = util.parse_cursor_link()
-    if cursor_link ~= nil and ref_type ~= RefTypes.NakedUrl then
+    if cursor_link ~= nil and ref_type ~= RefTypes.NakedUrl and ref_type ~= RefTypes.FileUrl then
       local note = client:resolve_note(cursor_link)
       if note ~= nil then
-        path = assert(client:vault_relative_path(note.path))
+        path = tostring(client:vault_relative_path(note.path, { strict = true }))
       else
         log.err "Could not resolve link under cursor to a note ID, path, or alias"
         return
@@ -31,7 +31,7 @@ return function(client, data)
     else
       -- bufname is an absolute path to the buffer.
       local bufname = vim.api.nvim_buf_get_name(0)
-      path = client:vault_relative_path(bufname)
+      path = tostring(client:vault_relative_path(bufname, { strict = true }))
       if path == nil then
         log.err("Current buffer '" .. bufname .. "' does not appear to be inside the vault")
         return
@@ -59,7 +59,7 @@ return function(client, data)
 
   ---@type string, string[]
   local cmd, args
-  if this_os == util.OSType.Linux then
+  if this_os == util.OSType.Linux or this_os == util.OSType.FreeBSD then
     cmd = "xdg-open"
     args = { uri }
   elseif this_os == util.OSType.Wsl then

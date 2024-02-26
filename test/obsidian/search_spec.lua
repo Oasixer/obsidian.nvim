@@ -1,6 +1,7 @@
 local async = require "plenary.async"
 local channel = require("plenary.async.control").channel
 local search = require "obsidian.search"
+local Path = require "obsidian.path"
 
 local RefTypes = search.RefTypes
 local SearchOpts = search.SearchOpts
@@ -12,7 +13,10 @@ describe("search.find_notes_async()", function()
       local tx, rx = channel.oneshot()
       search.find_notes_async(".", "foo.md", function(matches)
         assert.equals(#matches, 1)
-        assert.equals(tostring(matches[1]), "./test_fixtures/notes/foo.md")
+        assert.equals(
+          tostring(matches[1]),
+          tostring(Path.new("./test_fixtures/notes/foo.md"):resolve { strict = true })
+        )
         tx()
       end)
       rx()
@@ -23,7 +27,10 @@ describe("search.find_notes_async()", function()
       local tx, rx = channel.oneshot()
       search.find_notes_async(".", "notes/foo.md", function(matches)
         assert.equals(#matches, 1)
-        assert.equals(tostring(matches[1]), "./test_fixtures/notes/foo.md")
+        assert.equals(
+          tostring(matches[1]),
+          tostring(Path.new("./test_fixtures/notes/foo.md"):resolve { strict = true })
+        )
         tx()
       end)
       rx()
@@ -51,6 +58,13 @@ describe("search.find_tags()", function()
   it("should find positions of all tags", function()
     local s = "I have a #meeting at noon"
     assert.are_same({ { 10, 17, RefTypes.Tag } }, search.find_tags(s))
+  end)
+
+  it("should ignore escaped tags", function()
+    local s = "I have a #meeting at noon \\#not-a-tag"
+    assert.are_same({ { 10, 17, RefTypes.Tag } }, search.find_tags(s))
+    s = [[\#notatag]]
+    assert.are_same({}, search.find_tags(s))
   end)
 
   it("should ignore anchor links that look like tags", function()

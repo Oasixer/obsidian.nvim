@@ -27,7 +27,7 @@ return function(client, data)
   end
 
   -- create the new note.
-  local note = client:new_note(title)
+  local note = client:create_note { title = title }
 
   -- replace selection with link to new note
   local link = client:format_link(note)
@@ -35,7 +35,6 @@ return function(client, data)
   client:update_ui(0)
 
   -- add the selected text to the end of the new note
-  local open_in = util.get_open_strategy(client.opts.open_notes_in)
-  vim.cmd(open_in .. tostring(note.path))
+  client:open_note(note)
   vim.api.nvim_buf_set_lines(0, -1, -1, false, content)
 end

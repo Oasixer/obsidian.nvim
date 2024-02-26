@@ -26,11 +26,9 @@ source.complete = function(_, request, callback)
       for note in iter(results) do
         local labels_seen = {}
 
-        local aliases
-        if client.opts.completion.use_path_only then
-          aliases = { note.id }
-        else
-          aliases = util.tbl_unique { tostring(note.id), note:display_name(), unpack(note.aliases) }
+        local aliases = util.tbl_unique { tostring(note.id), note:display_name(), unpack(note.aliases) }
+        if note.title ~= nil and not util.tbl_contains(aliases, note.title) then
+          aliases[#aliases + 1] = note.title
         end
 
         for alias in iter(aliases) do
@@ -72,7 +70,7 @@ source.complete = function(_, request, callback)
               end
 
               table.insert(items, {
-                documentation = { kind = "markdown", value = note:display_info() },
+                documentation = { kind = "markdown", value = note:display_info { label = option } },
                 sortText = sort_text,
                 label = label,
                 kind = 18, -- "Reference"

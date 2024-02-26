@@ -1,4 +1,3 @@
-local Path = require "plenary.path"
 local iter = require("obsidian.itertools").iter
 local log = require "obsidian.log"
 
@@ -161,7 +160,10 @@ end
 util.is_url = function(s)
   local search = require "obsidian.search"
 
-  if string.match(util.strip_whitespace(s), "^" .. search.Patterns[search.RefTypes.NakedUrl] .. "$") then
+  if
+    string.match(util.strip_whitespace(s), "^" .. search.Patterns[search.RefTypes.NakedUrl] .. "$")
+    or string.match(util.strip_whitespace(s), "^" .. search.Patterns[search.RefTypes.FileUrl] .. "$")
+  then
     return true
   else
     return false
@@ -381,47 +383,6 @@ util.string_replace = function(s, what, with, n)
   return s, count
 end
 
-------------------
--- Path helpers --
-------------------
-
---- Get the parent directory of a path.
----
----@param path string|Path
----
----@return Path
-util.parent_directory = function(path)
-  -- 'Path:parent()' has bugs on Windows, so we try 'vim.fs.dirname' first instead.
-  if vim.fs and vim.fs.dirname then
-    local dirname = vim.fs.dirname(tostring(path))
-    if dirname ~= nil then
-      return Path:new(dirname)
-    end
-  end
-
-  return Path:new(path):parent()
-end
-
---- Get all parent directories of a path. Returns strings to be consistent with `Path:parents()`.
----
----@param path string|Path
----
----@return string[]
-util.parent_directories = function(path)
-  -- 'Path:parents()' has bugs on Windows, so we do this our own way.
-  ---@type string[]
-  local parents = {}
-  local current = tostring(path)
-  ---@type string
-  local parent = tostring(util.parent_directory(current))
-  while parent ~= current do
-    parents[#parents + 1] = parent
-    current = parent
-    parent = tostring(util.parent_directory(current))
-  end
-  return parents
-end
-
 ------------------------------------
 -- Miscellaneous helper functions --
 ------------------------------------
@@ -432,6 +393,7 @@ util.OSType = {
   Wsl = "Wsl",
   Windows = "Windows",
   Darwin = "Darwin",
+  FreeBSD = "FreeBSD",
 }
 
 util._current_os = nil
@@ -474,7 +436,7 @@ util.get_open_strategy = function(opt)
 
   if vim.startswith(OpenStrategy.hsplit, opt) then
     if cur_layout ~= "col" then
-      return "hsplit "
+      return "split "
     else
       return "e "
     end
@@ -508,15 +470,15 @@ util.toggle_checkbox = function()
   local line_num = unpack(vim.api.nvim_win_get_cursor(0)) -- 1-indexed
   local line = vim.api.nvim_get_current_line()
 
-  local checkbox_pattern = "^%s*- %[.*"
+  local checkbox_pattern = "^%s*- %[.] "
 
   if not string.match(line, checkbox_pattern) then
-    local unordered_list_pattern = "^([ ]*)[-*+] ([^%[])"
+    local unordered_list_pattern = "^(%s*)[-*+] (.*)"
 
     if string.match(line, unordered_list_pattern) then
       line = string.gsub(line, unordered_list_pattern, "%1- [ ] %2")
     else
-      line = string.gsub(line, "^([%s]*)", "%1- [ ] ")
+      line = string.gsub(line, "^(%s*)", "%1- [ ] ")
     end
   elseif string.match(line, "^%s*- %[ %].*") then
     line = util.string_replace(line, "- [ ]", "- [x]", 1)
@@ -583,15 +545,20 @@ end
 ---@param line string|nil - line to check or current line if nil
 ---@param col  integer|nil - column to check or current column if nil (1-indexed)
 ---@param include_naked_urls boolean|?
+---@param include_file_urls boolean|?
 ---@return integer|nil, integer|nil, obsidian.search.RefTypes|? - start and end column of link (1-indexed)
-util.cursor_on_markdown_link = function(line, col, include_naked_urls)
+util.cursor_on_markdown_link = function(line, col, include_naked_urls, include_file_urls)
   local search = require "obsidian.search"
 
   local current_line = line and line or vim.api.nvim_get_current_line()
   local _, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
   cur_col = col or cur_col + 1 -- nvim_win_get_cursor returns 0-indexed column
 
-  for match in iter(search.find_refs(current_line, { include_naked_urls = include_naked_urls })) do
+  for match in
+    iter(
+      search.find_refs(current_line, { include_naked_urls = include_naked_urls, include_file_urls = include_file_urls })
+    )
+  do
     local open, close, m_type = unpack(match)
     if open <= cur_col and cur_col <= close then
       return open, close, m_type
@@ -606,22 +573,29 @@ end
 ---@param line string|?
 ---@param col integer|?
 ---@param include_naked_urls boolean|?
+---@param include_file_urls boolean|?
 ---
 ---@return string|?, string|?, obsidian.search.RefTypes|?
-util.cursor_link = function(line, col, include_naked_urls)
-  return util.parse_cursor_link { line = line, col = col, include_naked_urls = include_naked_urls }
+util.cursor_link = function(line, col, include_naked_urls, include_file_urls)
+  return util.parse_cursor_link {
+    line = line,
+    col = col,
+    include_naked_urls = include_naked_urls,
+    include_file_urls = include_file_urls,
+  }
 end
 
 --- Get the link location and name of the link under the cursor, if there is one.
 ---
----@param opts { line: string|?, col: integer|?, include_naked_urls: boolean|? }|?
+---@param opts { line: string|?, col: integer|?, include_naked_urls: boolean|?, include_file_urls: boolean|? }|?
 ---
 ---@return string|?, string|?, obsidian.search.RefTypes|?
 util.parse_cursor_link = function(opts)
   opts = opts and opts or {}
 
   local current_line = opts.line and opts.line or vim.api.nvim_get_current_line()
-  local open, close, link_type = util.cursor_on_markdown_link(current_line, opts.col, opts.include_naked_urls)
+  local open, close, link_type =
+    util.cursor_on_markdown_link(current_line, opts.col, opts.include_naked_urls, opts.include_file_urls)
   if open == nil or close == nil then
     return
   end
@@ -631,7 +605,7 @@ util.parse_cursor_link = function(opts)
 end
 
 ---@param link string
----@param opts { include_naked_urls: boolean|?, link_type: obsidian.search.RefTypes|? }|?
+---@param opts { include_naked_urls: boolean|?, include_file_urls: boolean|?, link_type: obsidian.search.RefTypes|? }|?
 ---
 ---@return string|?, string|?, obsidian.search.RefTypes|?
 util.parse_link = function(link, opts)
@@ -641,7 +615,14 @@ util.parse_link = function(link, opts)
 
   local link_type = opts.link_type
   if link_type == nil then
-    for match in iter(search.find_refs(link, { include_naked_urls = opts.include_naked_urls })) do
+    for match in
+      iter(
+        search.find_refs(
+          link,
+          { include_naked_urls = opts.include_naked_urls, include_file_urls = opts.include_file_urls }
+        )
+      )
+    do
       local _, _, m_type = unpack(match)
       if m_type then
         link_type = m_type
@@ -659,6 +640,9 @@ util.parse_link = function(link, opts)
     link_location = link:gsub("^%[(.-)%]%((.*)%)$", "%2")
     link_name = link:gsub("^%[(.-)%]%((.*)%)$", "%1")
   elseif link_type == search.RefTypes.NakedUrl then
+    link_location = link
+    link_name = link
+  elseif link_type == search.RefTypes.FileUrl then
     link_location = link
     link_name = link
   elseif link_type == search.RefTypes.WikiWithAlias then
@@ -779,7 +763,7 @@ util.get_named_buffers = function()
     if bufnr > max_bufnr then
       return nil
     else
-      return bufnr, vim.fs.normalize(vim.api.nvim_buf_get_name(bufnr))
+      return bufnr, vim.api.nvim_buf_get_name(bufnr)
     end
   end
 end
@@ -856,7 +840,7 @@ util.get_visual_selection = function()
     _, cerow, cecol, _ = unpack(vim.fn.getpos "'>")
   end
 
-  -- swap vars if needed
+  -- Swap vars if needed
   if cerow < csrow then
     csrow, cerow = cerow, csrow
     cscol, cecol = cecol, cscol
@@ -866,6 +850,16 @@ util.get_visual_selection = function()
 
   local lines = vim.fn.getline(csrow, cerow)
   assert(type(lines) == "table")
+
+  -- When the whole line is selected via visual line mode ("V"), cscol / cecol will be equal to "v:maxcol"
+  -- for some odd reason. So change that to what they should be here. See ':h getpos' for more info.
+  local maxcol = vim.api.nvim_get_vvar "maxcol"
+  if cscol == maxcol then
+    cscol = string.len(lines[1])
+  end
+  if cecol == maxcol then
+    cecol = string.len(lines[#lines])
+  end
 
   ---@type string
   local selection
@@ -892,6 +886,90 @@ util.get_visual_selection = function()
     cerow = cerow,
     cecol = cecol,
   }
+end
+
+---@param opts {path: string, label: string, id: string|integer|?}
+---@return string
+util.wiki_link_path_only = function(opts)
+  return string.format("[[%s]]", opts.path)
+end
+
+---@param opts {path: string, label: string, id: string|integer|?}
+---@return string
+util.wiki_link_path_prefix = function(opts)
+  if opts.label ~= opts.path then
+    return string.format("[[%s|%s]]", opts.path, opts.label)
+  else
+    return string.format("[[%s]]", opts.path)
+  end
+end
+
+---@param opts {path: string, label: string, id: string|integer|?}
+---@return string
+util.wiki_link_id_prefix = function(opts)
+  if opts.id == nil then
+    return string.format("[[%s]]", opts.label)
+  elseif opts.label ~= opts.id then
+    return string.format("[[%s|%s]]", opts.id, opts.label)
+  else
+    return string.format("[[%s]]", opts.id)
+  end
+end
+
+---@param opts {path: string, label: string, id: string|integer|?}
+---@return string
+util.markdown_link = function(opts)
+  return string.format("[%s](%s)", opts.label, opts.path)
+end
+
+--- Open a buffer for the corresponding path.
+---
+---@param path string|obsidian.Path
+---@param opts { line: integer|?, col: integer|?, cmd: string|? }|?
+util.open_buffer = function(path, opts)
+  local Path = require "obsidian.path"
+
+  path = Path.new(path):resolve()
+  opts = opts and opts or {}
+  local cmd = util.strip_whitespace(opts.cmd and opts.cmd or "e")
+
+  -- Check for existing buffer and use 'drop' command if one is found.
+  for _, bufname in util.get_named_buffers() do
+    if bufname == path then
+      cmd = "drop"
+      break
+    end
+  end
+
+  vim.cmd(string.format("%s %s", cmd, vim.fn.fnameescape(tostring(path))))
+  if opts.line then
+    vim.api.nvim_win_set_cursor(0, { tonumber(opts.line), opts.col and opts.col or 0 })
+  end
+end
+
+--- Get a nice icon for a file or URL, if possible.
+---
+---@param path string
+---
+---@return string|?, string|? (icon, hl_group) The icon and highlight group.
+util.get_icon = function(path)
+  if util.is_url(path) then
+    local icon = ""
+    local _, hl_group = util.get_icon "blah.html"
+    return icon, hl_group
+  else
+    local ok, res = pcall(function()
+      local icon, hl_group = require("nvim-web-devicons").get_icon(path, nil, { default = true })
+      return { icon, hl_group }
+    end)
+    if ok and type(res) == "table" then
+      local icon, hlgroup = unpack(res)
+      return icon, hlgroup
+    elseif vim.endswith(path, ".md") then
+      return ""
+    end
+  end
+  return nil
 end
 
 return util

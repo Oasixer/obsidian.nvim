@@ -1,4 +1,4 @@
-local Path = require "plenary.path"
+local Path = require "obsidian.path"
 local abc = require "obsidian.abc"
 local with = require("plenary.context_manager").with
 local open = require("plenary.context_manager").open
@@ -20,7 +20,7 @@ local SKIP_UPDATING_FRONTMATTER = { "README.md", "CONTRIBUTING.md", "CHANGELOG.m
 ---@field aliases string[]
 ---@field title string|?
 ---@field tags string[]
----@field path Path|?
+---@field path obsidian.Path|?
 ---@field metadata table|?
 ---@field has_frontmatter boolean|?
 ---@field frontmatter_end_line integer|?
@@ -37,7 +37,7 @@ local Note = abc.new_class {
 ---@param id string|number
 ---@param aliases string[]
 ---@param tags string[]
----@param path string|Path|?
+---@param path string|obsidian.Path|?
 ---
 ---@return obsidian.Note
 Note.new = function(id, aliases, tags, path)
@@ -45,7 +45,7 @@ Note.new = function(id, aliases, tags, path)
   self.id = id
   self.aliases = aliases and aliases or {}
   self.tags = tags and tags or {}
-  self.path = path and Path:new(path) or nil
+  self.path = path and Path.new(path) or nil
   self.metadata = nil
   self.has_frontmatter = nil
   self.frontmatter_end_line = nil
@@ -53,13 +53,23 @@ Note.new = function(id, aliases, tags, path)
 end
 
 --- Get markdown display info about the note.
+---
+---@param opts { label: string|? }|?
+---
 ---@return string
-Note.display_info = function(self)
+Note.display_info = function(self, opts)
+  opts = opts and opts or {}
+
   ---@type string[]
   local info = {}
 
+  if opts.label ~= nil and string.len(opts.label) > 0 then
+    info[#info + 1] = ("%s"):format(opts.label)
+    info[#info + 1] = "--------"
+  end
+
   if self.path ~= nil then
-    info[#info + 1] = ("**path:** %s"):format(self.path)
+    info[#info + 1] = ("**path:** `%s`"):format(self.path)
   end
 
   if #self.aliases > 0 then
@@ -67,7 +77,7 @@ Note.display_info = function(self)
   end
 
   if #self.tags > 0 then
-    info[#info + 1] = ("**tags:** '%s'"):format(table.concat(self.tags, "', '"))
+    info[#info + 1] = ("**tags:** `#%s`"):format(table.concat(self.tags, "`, `#"))
   end
 
   return table.concat(info, "\n")
@@ -168,38 +178,36 @@ end
 
 --- Initialize a note from a file.
 ---
----@param path string|Path
----@param root string|Path|?
+---@param path string|obsidian.Path
 ---
 ---@return obsidian.Note
-Note.from_file = function(path, root)
+Note.from_file = function(path)
   if path == nil then
     error "note path cannot be nil"
   end
   local n
-  with(open(vim.fs.normalize(tostring(path))), function(reader)
+  with(open(Path.new(path):resolve { strict = true }), function(reader)
     n = Note.from_lines(function()
       return reader:lines()
-    end, path, root)
+    end, path)
   end)
   return n
 end
 
 --- An async version of `.from_file()`.
 ---
----@param path string|Path
----@param root string|Path|?
+---@param path string|obsidian.Path
 ---
 ---@return obsidian.Note
-Note.from_file_async = function(path, root)
+Note.from_file_async = function(path)
   local File = require("obsidian.async").File
   if path == nil then
     error "note path cannot be nil"
   end
-  local f = File.open(vim.fs.normalize(tostring(path)))
+  local f = File.open(tostring(Path.new(path):resolve { strict = true }))
   local ok, res = pcall(Note.from_lines, function()
     return f:lines(false)
-  end, path, root)
+  end, path)
   f:close()
   if ok then
     return res
@@ -211,10 +219,9 @@ end
 --- Initialize a note from a buffer.
 ---
 ---@param bufnr integer|?
----@param root string|Path|?
 ---
 ---@return obsidian.Note
-Note.from_buffer = function(bufnr, root)
+Note.from_buffer = function(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   local path = vim.api.nvim_buf_get_name(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
@@ -232,14 +239,16 @@ Note.from_buffer = function(bufnr, root)
     end
   end
 
-  return Note.from_lines(lines_iter, path, root)
+  return Note.from_lines(lines_iter, path)
 end
 
 --- Get the display name for note.
 ---
 ---@return string
 Note.display_name = function(self)
-  if #self.aliases > 0 then
+  if self.title then
+    return self.title
+  elseif #self.aliases > 0 then
     return self.aliases[#self.aliases]
   end
   return tostring(self.id)
@@ -248,12 +257,11 @@ end
 --- Initialize a note from an iterator of lines.
 ---
 ---@param lines function
----@param path string|Path
----@param root string|Path|?
+---@param path string|obsidian.Path
 ---
 ---@return obsidian.Note
-Note.from_lines = function(lines, path, root)
-  local cwd = tostring(root and root or "./")
+Note.from_lines = function(lines, path)
+  path = Path.new(path):resolve()
 
   local id = nil
   local title = nil
@@ -354,7 +362,7 @@ Note.from_lines = function(lines, path, root)
           elseif type(v) == "string" then
             tags = vim.split(v, " ")
           else
-            log.warn("Invalid 'tags' in frontmatter for " .. tostring(path))
+            log.warn("Invalid 'tags' in frontmatter for '%s'", path)
           end
         else
           if metadata == nil then
@@ -367,21 +375,8 @@ Note.from_lines = function(lines, path, root)
   end
 
   -- The ID should match the filename with or without the extension.
-  local relative_path = tostring(Path:new(tostring(path)):make_relative(cwd))
-  local relative_path_no_ext = relative_path
-  if vim.endswith(relative_path_no_ext, ".md") then
-    -- NOTE: alternatively we could use `vim.fn.fnamemodify`, but that will give us luv errors
-    -- when called from an async context on certain operating systems.
-    -- relative_path_no_ext = vim.fn.fnamemodify(relative_path, ":r")
-    relative_path_no_ext = relative_path_no_ext:sub(1, -4)
-  end
-  local fname = assert(vim.fs.basename(relative_path))
-  local fname_no_ext = fname
-  if vim.endswith(fname_no_ext, ".md") then
-    fname_no_ext = fname_no_ext:sub(1, -4)
-  end
-  if id ~= relative_path and id ~= relative_path_no_ext and id ~= fname and id ~= fname_no_ext then
-    id = fname_no_ext
+  if id ~= path.name and id ~= path.stem then
+    id = path.stem
   end
   assert(id)
 
@@ -484,7 +479,7 @@ end
 
 --- Save note to file. This only updates the frontmatter and header, leaving the rest of the contents unchanged.
 ---
----@param path string|Path|?
+---@param path string|obsidian.Path|?
 ---@param insert_frontmatter boolean|?
 ---@param frontmatter table|?
 Note.save = function(self, path, insert_frontmatter, frontmatter)
@@ -535,10 +530,9 @@ Note.save = function(self, path, insert_frontmatter, frontmatter)
   end
 
   --Write new lines.
-  local save_path = vim.fs.normalize(tostring(path and path or self.path))
-  assert(save_path ~= nil)
-  util.parent_directory(save_path):mkdir { parents = true, exists_ok = true }
-  local save_f = io.open(save_path, "w")
+  local save_path = Path.new(assert(path and path or self.path)):resolve()
+  assert(save_path:parent()):mkdir { parents = true, exist_ok = true }
+  local save_f = io.open(tostring(save_path), "w")
   if save_f == nil then
     error(string.format("failed to write file at " .. save_path))
   end

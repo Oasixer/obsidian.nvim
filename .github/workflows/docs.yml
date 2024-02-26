@@ -35,7 +35,7 @@ jobs:
       - run: date +%F > /tmp/todays-date
 
       - name: Restore cache for today's nightly
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             _neovim
@@ -78,6 +78,7 @@ jobs:
       - name: Clean up
         run: |
           rm -rf _neovim/
+          git status
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         if: github.event_name != 'pull_request'

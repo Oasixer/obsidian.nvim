@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Deprecated `Client:new_note()` in favor of `Client:create_note()`.
+
+## [v3.5.3](https://github.com/epwalsh/obsidian.nvim/releases/tag/v3.5.3) - 2024-02-25
+
+### Fixed
+
+- Fixed regression with cloning templates where a directory was created instead of a file.
+
+## [v3.5.2](https://github.com/epwalsh/obsidian.nvim/releases/tag/v3.5.2) - 2024-02-25
+
+### Fixed
+
+- Fixed os selection in `ObsidianOpen` command.
+
+## [v3.5.1](https://github.com/epwalsh/obsidian.nvim/releases/tag/v3.5.1) - 2024-02-24
+
+Minor internal improvements.
+
+## [v3.5.0](https://github.com/epwalsh/obsidian.nvim/releases/tag/v3.5.0) - 2024-02-23
+
+### Added
+
+- Added CI testing for Windows.
+
+### Changed
+
+- (internal) Replaced all uses of `plenary.path` with a custom `obsidian.path` class that stays more true to the Python pathlib API and should be more reliable across operating systems.
+
+### Fixed
+
+- If you have `new_notes_location="current_dir"` but you're not inside of a vault, the new note will be created in your vault instead of the current (buffer) directory.
+- Fixed a regression where note titles were not considered for autocomplete when the title was not part of the frontmatter (only an H1 header).
+- Escaped tags (e.g. `\#notatag`) will no longer come up in tag searches.
+
+## [v3.4.1](https://github.com/epwalsh/obsidian.nvim/releases/tag/v3.4.1) - 2024-02-22
+
+### Fixed
+
+- Ensure old buffer is removed when renaming current note.
+
+## [v3.4.0](https://github.com/epwalsh/obsidian.nvim/releases/tag/v3.4.0) - 2024-02-21
+
+### Added
+
+- Added client methods `Client:find_backlinks()` and `Client:find_backlinks_async()`.
+- Added client method `Client:open_note()` for open a note in a buffer.
+
+### Changed
+
+- `:ObsidianBacklinks` and `:ObsidianTags` now open your preferred picker instead of a separate buffer.
+- Improved `cmp_obsidian` doc/preview text.
+
+### Fixed
+
+- Fixed `:ObsidianExtractNote` when usual visual line selection ("V").
+- Fixed "hsplit" open strategy.
+
+## [v3.3.1](https://github.com/epwalsh/obsidian.nvim/releases/tag/v3.3.1) - 2024-02-18
+
+### Fixed
+
+- Fixed inserting templates when the templates directory structure is nested.
+
+## [v3.3.0](https://github.com/epwalsh/obsidian.nvim/releases/tag/v3.3.0) - 2024-02-17
+
+### Added
+
+- Support for `file:/` and `file:///` Urls.
+- Added configuration options `wiki_link_func` and `markdown_link_func` for customizing how links are formatted.
+
+### Fixed
+
+- Urls ending in `/` were not detected.
+- Fixed small bug with toggle checkbox mapping where lines that started with a wiki link or md link were misclassified.
+
+### Changed
+
+- Config options `completion.prepend_note_id`, `completion.prepend_note_path`, and `completion.use_path_only` are now deprecated. Please use `wiki_link_func` and `markdown_link_func` instead.
+- Moved configuration option `completion.preferred_link_style` to top-level `preferred_link_style`.
+- Moved configuration option `completion.new_notes_location` to top-level `new_notes_location`.
+
 ## [v3.2.0](https://github.com/epwalsh/obsidian.nvim/releases/tag/v3.2.0) - 2024-02-13
 
 ### Added

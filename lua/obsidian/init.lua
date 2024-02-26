@@ -3,18 +3,17 @@ local log = require "obsidian.log"
 local module_lookups = {
   abc = "obsidian.abc",
   async = "obsidian.async",
-  backlinks = "obsidian.backlinks",
   Client = "obsidian.client",
   collections = "obsidian.collections",
   commands = "obsidian.commands",
   completion = "obsidian.completion",
   config = "obsidian.config",
-  LocationList = "obsidian.location_list",
   log = "obsidian.log",
   img_paste = "obsidian.img_paste",
   itertools = "obsidian.itertools",
   mappings = "obsidian.mappings",
   Note = "obsidian.note",
+  Path = "obsidian.path",
   pickers = "obsidian.pickers",
   search = "obsidian.search",
   templates = "obsidian.templates",
@@ -58,7 +57,8 @@ obsidian.info = function()
 
   local info = obsidian.util.get_plugin_info()
   if info ~= nil then
-    print("[obsidian.nvim (v" .. obsidian.VERSION .. ")] " .. info)
+    print "Plugins:"
+    print("  [obsidian.nvim (v" .. obsidian.VERSION .. ")] " .. info)
   else
     print(
       "ERROR: could not find path to obsidian.nvim installation.\n"
@@ -68,19 +68,25 @@ obsidian.info = function()
     return
   end
 
-  for plugin in iter { "plenary.nvim", "nvim-cmp", "telescope.nvim", "fzf-lua", "fzf.vim", "mini.pick", "vim-markdown" } do
+  for plugin in iter { "plenary.nvim", "nvim-cmp", "telescope.nvim", "fzf-lua", "mini.pick" } do
     local plugin_info = obsidian.util.get_plugin_info(plugin)
     if plugin_info ~= nil then
-      print("[" .. plugin .. "] " .. plugin_info)
+      print("  [" .. plugin .. "] " .. plugin_info)
     end
   end
 
+  print "Tools:"
   for cmd in iter { "rg" } do
     local cmd_info = obsidian.util.get_external_dependency_info(cmd)
     if cmd_info ~= nil then
-      print(cmd_info)
+      print("  [" .. cmd .. "] " .. cmd_info)
+    else
+      print("  [" .. cmd .. "] " .. "not found")
     end
   end
+
+  print "Environment:"
+  print("  [OS] " .. obsidian.util.get_os())
 end
 
 ---Create a new Obsidian client without additional setup.
@@ -107,8 +113,6 @@ end
 ---
 ---@return obsidian.Client
 obsidian.setup = function(opts)
-  local Path = require "plenary.path"
-
   opts = obsidian.config.ClientOpts.normalize(opts)
   local client = obsidian.new(opts)
   log.set_level(client.opts.log_level)
@@ -141,7 +145,7 @@ obsidian.setup = function(opts)
       -- Set the current directory of the buffer.
       local buf_dir = vim.fs.dirname(ev.match)
       if buf_dir then
-        client.buf_dir = Path:new(buf_dir)
+        client.buf_dir = obsidian.Path.new(buf_dir)
       end
 
       -- Check if we're in *any* workspace.
@@ -199,7 +203,7 @@ obsidian.setup = function(opts)
       end
 
       local bufnr = ev.buf
-      local note = obsidian.Note.from_buffer(bufnr, client.dir)
+      local note = obsidian.Note.from_buffer(bufnr)
       if not client:should_save_frontmatter(note) then
         return
       end

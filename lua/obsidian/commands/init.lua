@@ -111,7 +111,7 @@ M.complete_args_search = function(client, _, cmd_line, _)
   local completions = {}
   local query_lower = string.lower(query)
   for note in iter(client:find_notes(query, { sort = true })) do
-    local note_path = assert(client:vault_relative_path(note.path))
+    local note_path = assert(client:vault_relative_path(note.path, { strict = true }))
     if string.find(string.lower(note:display_name()), query_lower, 1, true) then
       table.insert(completions, note:display_name() .. "  " .. note_path)
     else
@@ -146,9 +146,9 @@ M.register("ObsidianCheck", { opts = { nargs = 0, desc = "Check for issues in yo
 
 M.register("ObsidianToday", { opts = { nargs = "?", desc = "Open today's daily note" } })
 
-M.register("ObsidianYesterday", { opts = { nargs = 0, desc = "Open yesterday's daily note" } })
+M.register("ObsidianYesterday", { opts = { nargs = 0, desc = "Open the daily note for the previous working day" } })
 
-M.register("ObsidianTomorrow", { opts = { nargs = 0, desc = "Open tomorrow's daily note" } })
+M.register("ObsidianTomorrow", { opts = { nargs = 0, desc = "Open the daily note for the next working day" } })
 
 M.register("ObsidianNew", { opts = { nargs = "?", desc = "Create a new note" } })
 

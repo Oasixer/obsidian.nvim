@@ -2,6 +2,8 @@
 
 set -e
 
+git pull
+
 export TAG=$(make version)
 
 read -p "Creating new release for $TAG. Do you want to continue? [Y/n] " prompt

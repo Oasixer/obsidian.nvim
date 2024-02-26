@@ -67,17 +67,21 @@ Executor.map = function(self, fn, task_args, callback)
   if type(task_args) == "table" and util.tbl_is_array(task_args) then
     num_tasks = #task_args
     for i, args in ipairs(task_args) do
+      if i == #task_args then
+        all_submitted = true
+      end
       self:submit(fn, get_task_done_fn(i), unpack(args))
     end
-    all_submitted = true
   elseif type(task_args) == "table" then
+    num_tasks = vim.tbl_count(task_args)
     local i = 0
     for k, v in pairs(task_args) do
       i = i + 1
-      num_tasks = num_tasks + 1
+      if i == #task_args then
+        all_submitted = true
+      end
       self:submit(fn, get_task_done_fn(i), k, v)
     end
-    all_submitted = true
   elseif type(task_args) == "function" then
     local i = 0
     local args = { task_args() }
@@ -280,8 +284,8 @@ File.lines = function(self, include_new_line_char)
   local eof_reached = false
 
   local lines = function()
-    local idx = string.find(buffer, "[\r\n]")
-    while idx == nil and not eof_reached do
+    local idx_s, idx_e = string.find(buffer, "\r?\n")
+    while idx_s == nil and not eof_reached do
       ---@diagnostic disable-next-line: redefined-local
       local err, data
       err, data = async.uv.fs_read(self.fd, chunk_size, offset)
@@ -291,13 +295,14 @@ File.lines = function(self, include_new_line_char)
       else
         buffer = buffer .. data
         offset = offset + string.len(data)
-        idx = string.find(buffer, "[\r\n]")
+        idx_s, idx_e = string.find(buffer, "\r?\n")
       end
     end
 
-    if idx ~= nil then
-      local line = string.sub(buffer, 1, idx)
-      buffer = string.sub(buffer, idx + 1)
+    if idx_s ~= nil then
+      assert(idx_e)
+      local line = string.sub(buffer, 1, idx_s)
+      buffer = string.sub(buffer, idx_e + 1)
       if include_new_line_char then
         return line
       else
@@ -409,6 +414,7 @@ M.throttle = function(fn, timeout)
         timer = vim.loop.new_timer()
       end
       local args = { ... }
+      assert(timer)
       timer:start(
         ms_remaining,
         0,

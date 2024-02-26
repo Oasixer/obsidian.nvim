@@ -1,12 +1,13 @@
 local telescope = require "telescope.builtin"
-local Path = require "plenary.path"
+
+local Path = require "obsidian.path"
 local abc = require "obsidian.abc"
 local Picker = require "obsidian.pickers.picker"
 
 ---@class obsidian.pickers.TelescopePicker : obsidian.Picker
 local TelescopePicker = abc.new_class({}, Picker)
 
----@param opts { prompt_title: string|?, no_default_mappings: boolean|?, dir: string|Path|? }
+---@param opts { prompt_title: string|?, no_default_mappings: boolean|?, dir: string|obsidian.Path|? }
 ---
 ---@return string
 TelescopePicker.prompt_title = function(self, opts)
@@ -43,7 +44,7 @@ TelescopePicker.default_mappings = function(self, map, initial_query)
     obsidian_insert_link = function(prompt_bufnr)
       require("telescope.actions").close(prompt_bufnr)
       local path = require("telescope.actions.state").get_selected_entry().path
-      local note = require("obsidian").Note.from_file(path, self.client.dir)
+      local note = require("obsidian").Note.from_file(path)
       local link = self.client:format_link(note, {})
       vim.api.nvim_put({ link }, "", false, true)
     end,
@@ -62,7 +63,7 @@ TelescopePicker.default_mappings = function(self, map, initial_query)
   return true
 end
 
----@param opts { prompt_title: string|?, callback: fun(path: string)|?, no_default_mappings: boolean|?, dir: string|Path|? }|?
+---@param opts { prompt_title: string|?, callback: fun(path: string)|?, no_default_mappings: boolean|?, dir: string|obsidian.Path|? }|?
 TelescopePicker.find_files = function(self, opts)
   opts = opts and opts or {}
   telescope.find_files {
@@ -87,7 +88,7 @@ TelescopePicker.find_files = function(self, opts)
   }
 end
 
----@param opts { prompt_title: string|?, dir: string|Path|?, query: string|?, callback: fun(path: string)|?, no_default_mappings: boolean|? }|?
+---@param opts { prompt_title: string|?, dir: string|obsidian.Path|?, query: string|?, callback: fun(path: string)|?, no_default_mappings: boolean|? }|?
 TelescopePicker.grep = function(self, opts)
   opts = opts and opts or {}
 
@@ -127,8 +128,8 @@ TelescopePicker.grep = function(self, opts)
   end
 end
 
----@param values string[]|{ value: string, display: string, ordinal: string, filename: string|?, valid: boolean|? }[]
----@param opts { prompt_title: string|?, callback: fun(value: string)|? }|?
+---@param values string[]|obsidian.PickerEntry[]
+---@param opts { prompt_title: string|?, callback: fun(value: any)|? }|?
 TelescopePicker.pick = function(self, values, opts)
   local pickers = require "telescope.pickers"
   local finders = require "telescope.finders"
@@ -153,6 +154,10 @@ TelescopePicker.pick = function(self, values, opts)
 
   local make_entry_from_string = make_entry.gen_from_string(picker_opts)
 
+  local displayer = function(entry)
+    return self:_make_display(entry.raw)
+  end
+
   pickers
     .new(picker_opts, {
       prompt_title = self:prompt_title { prompt_title = opts.prompt_title, no_default_mappings = true },
@@ -162,7 +167,27 @@ TelescopePicker.pick = function(self, values, opts)
           if type(v) == "string" then
             return make_entry_from_string(v)
           else
-            return v
+            local ordinal = v.ordinal
+            if ordinal == nil then
+              ordinal = ""
+              if type(v.display) == "string" then
+                ordinal = ordinal .. v.display
+              end
+              if v.filename ~= nil then
+                ordinal = ordinal .. " " .. v.filename
+              end
+            end
+
+            return {
+              value = v.value,
+              display = displayer,
+              ordinal = ordinal,
+              filename = v.filename,
+              valid = v.valid,
+              lnum = v.lnum,
+              col = v.col,
+              raw = v,
+            }
           end
         end,
       },
